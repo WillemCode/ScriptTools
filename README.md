@@ -28,9 +28,107 @@
 
 1. **下载脚本**
    将脚本保存至服务器，建议存放于统一管理目录：
-   ```````````bash
+```
 mkdir -p /opt/scripts && cd /opt/scripts
 git clone https://github.com/WillemCode/ScriptTools.git
 cd ScriptTools
 chmod +x nginx_config_copy.sh dingding.sh
-``````
+```
+
+
+2. **配置钉钉通知（可选）**
+
+   如需启用钉钉通知，需在同一目录下提供`dingding.sh`，并确保其可执行权限。
+
+---
+
+## 使用方法
+
+### 操作模式说明
+
+| 模式 | 命令格式 | 描述 |
+|------|----------|------|
+| **模式1** | `./nginx_config_copy.sh [pem/cer/crt]` | 仅指定SSL证书类型，需手动输入新旧域名。 |
+| **模式2** | `./nginx_config_copy.sh [pem/cer/crt] [新域名] [旧域名]` | 标准配置模式，若文件存在则提示覆盖。 |
+| **模式3** | `./nginx_config_copy.sh [pem/cer/crt] [新域名] [旧域名] force` | 强制覆盖模式，跳过确认直接替换。 |
+
+### 参数详解
+
+| 参数 | 必选 | 说明 |
+|------|------|------|
+| `pem/cer/crt` | 是 | SSL证书文件后缀类型。 |
+| `新域名` | 是 | 需代理的新域名（如`www.new.com`）。 |
+| `旧域名` | 是 | 参考的旧域名配置文件（如`www.old.com`）。 |
+| `force` | 否 | 强制覆盖同名配置文件。 |
+
+### 使用示例
+
+**示例1：交互式配置（模式1）**  
+```bash
+./nginx_config_copy.sh pem
+# 根据提示输入新旧域名
+```
+
+**示例2：快速生成配置（模式2）**  
+```bash
+./nginx_config_copy.sh crt www.client.com www.template.com
+```
+
+**示例3：强制覆盖配置（模式3）**  
+```bash
+./nginx_config_copy.sh cer www.client2024.com www.template.com force
+```
+
+---
+
+## 配置文件说明
+
+### 生成文件路径
+- **Nginx配置**: 自动检测，默认存放于`/etc/nginx/conf.d/`（默认，根据实际环境可能不同）。
+- **SSL证书**: 自动检测，旧证书路径，默认位于`/etc/nginx/ssl/`。
+
+### PHP集成
+生成的配置文件中，`root`路径与原域名一致，后端PHP可通过`$_SERVER['HTTP_HOST']`获取当前域名，动态加载客户定制化页面。示例逻辑：
+```php
+// 根据域名加载不同客户模板
+$client = $_SERVER['HTTP_HOST'];
+include("/var/www/html/clients/$client/header.php");
+```
+
+---
+
+## 注意事项
+
+1. **SSL证书准备**  
+   - 需提前将证书文件（`.key`和指定后缀文件）放置于脚本检测路径（通常为旧域名证书目录）。
+   - 证书文件命名需为`[域名].[后缀]`，如`www.client.com.pem`。
+
+2. **备份策略**  
+   - 每次执行自动备份至`~/.domainpilot/backups/`，保留最近10份。
+
+3. **日志查看**  
+   - 执行日志实时输出至终端，错误信息标红显示。
+
+---
+
+## 技术支持
+
+- **问题反馈**：请提交Issue至[GitHub仓库](https://github.com/WillemCode/ScriptTools/issues)。
+
+---
+
+## 许可证说明
+
+本项目采用 [GNU General Public License (GPL)](./LICENSE) 进行开源发布。  
+这意味着：
+
+- 你可以自由复制、修改和分发本项目的源代码，但修改后的项目也必须继续以 GPL 或兼容的许可证进行发布；
+- 分发或发布时，需包含本项目的原始版权声明与 GPL 协议文本，并提供完整的源代码获取方式。
+
+请参阅 [LICENSE](./LICENSE) 文件获取详细条款。若你对 GPL 的使用及合规性有任何疑问，请查阅 [GNU 官网](https://www.gnu.org/licenses/) 或咨询相关专业人士。
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=WillemCode/ScriptTools&type=Date)](https://www.star-history.com/#WillemCode/ScriptTools&Date)
