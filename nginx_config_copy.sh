@@ -1,12 +1,13 @@
 #!/bin/bash
-# Script Name: config_script.sh
-# Author: WillemCode
+# Script Name: config_script.sh 
+# Description: 闪烁运维群需求 代理域名指向自动配置. 证书更换配置.
+# Author: wangjinlong
 # Date: 2024-05-09
-# Version: 3.6
+# Version: 5.7
 
 NGINX_BIN=nginx
 CURRENT_TIME=$(date "+%Y-%m-%d %T")
-PROJECT_NAME="ScriptTools"
+PROJECT_NAME="domainpilot"
 PROJECT_HOME="$HOME/.${PROJECT_NAME}"
 PROJECT_BACKUPS="$PROJECT_HOME/backups"
 
@@ -118,18 +119,7 @@ else
     exit 1
 fi
 
-BAK_CONFIG() {
-    if [ ! -d "${PROJECT_BACKUPS}" ]; then
-      mkdir -p "${PROJECT_BACKUPS}" && log_info "创建备份目录 ${PROJECT_BACKUPS} 成功."
-    fi
-    tar -czPf ${PROJECT_BACKUPS}/ng_vhosts_bak_$(date '+%Y%m%d%H%M%S').tar.gz ${VHOST_PATH}
-    check_command $? "配置文件备份成功."  "配置文件备份失败."
-    # 保留最近10个最新备份文件，其他的进行删除
-    find ${PROJECT_BACKUPS} -type f -name 'ng_vhosts_bak_*.tar.gz' -printf '%T@\t%p\n' | sort -nr | cut -f2- | tail -n +11 | xargs -I {} rm -f "{}"
-    check_command $? "清理备份文件成功."  "清理备份文件失败."
-    # 保留最近30天最新备份文件，其他的进行删除
-    # find ${PROJECT_BACKUPS} -type f -name 'ng_vhosts_bak_*.tar.gz' -mtime +30 -exec rm -f {} \;  
-}
+
 
 # 初始化操作系统和Nginx路径
 INIT_PARAMS() {
@@ -199,18 +189,24 @@ NG_CONFIG() {
             if confirm_input "$TO_CON"; then  
                 mv -bf ${VHOST_PATH}/${NEW_NG_CONF}{,-bak_$(date '+%Y%m%d%H%M%S')}
                 cp ${VHOST_PATH}/${OLD_NG_CONF} ${VHOST_PATH}/${NEW_NG_CONF}
-                sed -i "/root/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF}
+                sed -i "/root\|proxy/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF}
+                log_info "检查已修改的配置项..."
+                sed -n "/${NEW_DOMAIN}/p" ${VHOST_PATH}/${NEW_NG_CONF}
             else  
-                log_info "配置的新域名虚拟主机配置文件已存在, 正在进行退出."  
-                exit 100
+                log_info "配置的新域名虚拟主机配置文件已存在."  
+                return
             fi  
         fi
         mv -bf ${VHOST_PATH}/${NEW_NG_CONF}{,-bak_$(date '+%Y%m%d%H%M%S')}
         cp ${VHOST_PATH}/${OLD_NG_CONF} ${VHOST_PATH}/${NEW_NG_CONF}
         sed -i "/root\|proxy/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF} 
+        log_info "检查已修改的配置项..."
+        sed -n "/${NEW_DOMAIN}/p" ${VHOST_PATH}/${NEW_NG_CONF}
     else
         cp ${VHOST_PATH}/${OLD_NG_CONF} ${VHOST_PATH}/${NEW_NG_CONF}
         sed -i "/root\|proxy/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF} 
+        log_info "检查已修改的配置项..."
+        sed -n "/${NEW_DOMAIN}/p" ${VHOST_PATH}/${NEW_NG_CONF}
     fi
 }
 
@@ -239,10 +235,29 @@ SSL_CONFIG() {
                 fi
             fi
         else
+            if [ -f "${SSL_DOMAIN}.${SSL_SUFFIX}" ] && [ -f "${SSL_DOMAIN}.key" ]; then
+                end_date=$(openssl x509 -in "${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX}" -noout -enddate | cut -d= -f2)
+                end_date_formatted=$(date -d "$end_date" +"%Y-%m-%d")
+                end_date_epoch=$(date -d "$end_date" +%s)
+                new_data=$(openssl x509 -in "${SSL_DOMAIN}.${SSL_SUFFIX}" -noout -enddate | cut -d= -f2)
+                new_data_formatted=$(date -d "$new_data" +"%Y-%m-%d")
+                new_date_epoch=$(date -d "$new_data" +%s)
+		        if [ "$end_date_epoch" -lt "$new_date_epoch" ]; then
+                    log_info "正在更新证书..."
+                    log_info "当前证书到期时间: $end_date_formatted"
+                    log_info "更新证书到期时间: $new_data_formatted"
+                    mv ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX} ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX}_${end_date_epoch}
+                    mv ${SSL_PATH}/${SSL_DOMAIN}.key ${SSL_PATH}/${SSL_DOMAIN}.key_${end_date_epoch}
+                    mv ${SSL_DOMAIN}.${SSL_SUFFIX} ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX}
+                    mv ${SSL_DOMAIN}.key ${SSL_PATH}/${SSL_DOMAIN}.key
+                    log_info "证书已更换成功."
+                    bash dingding.sh "闪烁-客户证书配置" "\n 🏅 **客户SSL证书更新成功**    \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}    \n  ---   \n\r\n >  * 🚧 旧证书到期时间: ${end_date_formatted} \n\r\n >  * 🚀 新证书到期时间: ${new_data_formatted} \n\n --- \n ☑️ 到期记得更换哦 😯" "${NEW_DOMAIN}" >/dev/null 2>&1
+                else
+                    log_warning "当前需要配置证书的到期时间小于--服务器目前使用的证书, 不进行更换证书."
+		        fi
+            fi
             SSL_TYPE=$(openssl x509 -in ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX} -text -noout | awk -F'=' '/Subject: CN.*=/{print $2}')
             SSL_TIME=$(openssl x509 -in ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX} -noout -dates|grep notAfter|awk -F '=' '{print $2}')
-            sed -i "s#ssl_certificate .*#ssl_certificate ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX}\;#g" ${VHOST_PATH}/${NEW_NG_CONF} 
-            sed -i "s#ssl_certificate_key.*#ssl_certificate_key ${SSL_PATH}/${SSL_DOMAIN}.key\;#g" ${VHOST_PATH}/${NEW_NG_CONF} 
             break
         fi
         ((COUNTER++))
@@ -267,8 +282,8 @@ RELOAD_NG() {
     nginx -t
     if [ $? -eq 0 ]; then
         if [ -z "${DOMAIN_FORCE:-}" ]; then
-            read -e -p "是否重新加载 Nginx 配置 [ yes/no ]: " RELOAD_NG
-            if confirm_input "$RELOAD_NG"; then
+            read -e -p "是否重新加载 Nginx 配置 [ yes/no ]: "  RELOAD_YN
+            if confirm_input "${RELOAD_YN}"; then
                 service nginx reload
                 log_info "已重新加载配置文件..."
             else
@@ -279,6 +294,19 @@ RELOAD_NG() {
             log_info "已重新加载配置文件..."
         fi
     fi
+}
+
+BAK_CONFIG() {
+    if [ ! -d "${PROJECT_BACKUPS}" ]; then
+      mkdir -p "${PROJECT_BACKUPS}" && log_info "创建备份目录 ${PROJECT_BACKUPS} 成功."
+    fi
+    tar -czPf ${PROJECT_BACKUPS}/ng_vhosts_bak_$(date '+%Y%m%d%H%M%S').tar.gz ${VHOST_PATH}
+    check_command $? "配置文件备份成功."  "配置文件备份失败."
+    # 保留最近10个最新备份文件，其他的进行删除
+    find ${PROJECT_BACKUPS} -type f -name 'ng_vhosts_bak_*.tar.gz' -printf '%T@\t%p\n' | sort -nr | cut -f2- | tail -n +11 | xargs -I {} rm -f "{}"
+    check_command $? "清理备份文件成功."  "清理备份文件失败."
+    # 保留最近30天最新备份文件，其他的进行删除
+    # find ${PROJECT_BACKUPS} -type f -name 'ng_vhosts_bak_*.tar.gz' -mtime +30 -exec rm -f {} \;  
 }
 
 main() {
@@ -293,8 +321,8 @@ main() {
     # 计算匹配到的行数
     loop="0"
     count=$(grep -oP 'include\s+\K.*\*.conf' "$NGINX_CONFIG" | wc -l)
-    # 提取包含 *.conf 的 include 路径
-    grep -oP 'include\s+\K.*\*.conf' "$NGINX_CONFIG" | while IFS= read -r include_path; do
+
+    while IFS= read -r include_path; do
         ((loop++))
         # 如果是绝对路径，则不需要修改
         if [[ "$include_path" == /* ]]; then
@@ -309,12 +337,13 @@ main() {
         SSL_CONFIG
         CONFIG_DETAILS
         BAK_CONFIG
-    done
-    if [ $? -eq 0 ]; then
-        bash dingding.sh "客户代理配置" "#### 客户代理指向配置成功  \n  #### ${NEW_DOMAIN}  \n  \t\t\t\t  ⬇️   \t  \n  #### ${OLD_DOMAIN}" "${NEW_DOMAIN}" >/dev/null 2>&1
+    done < <(grep -oP 'include\s+\K.*\*.conf' "$NGINX_CONFIG")
+    NOTICE=$?
+    if [ $NOTICE -eq 0 ]; then
+        bash dingding.sh "闪烁-客户代理配置" "\n 🌺 **客户代理指向配置成功**   \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}    \n  ---  \n >  * 📋 配置文件: ${NEW_NG_CONF}    \n >  * 📂 主机路径: ${VHOST_PATH}    \n >  * 🔄 到期时间: ${SSL_TIME}    \n >  * 🌐 证书路径: ${SSL_PATH}" "${NEW_DOMAIN}" >/dev/null 2>&1
         RELOAD_NG
     else
-        bash dingding.sh "客户代理配置" "#### 客户代理指向配置失败  \n  #### ${NEW_DOMAIN}  \n  \t\t\t\t  ⬇️   \t  \n  #### ${OLD_DOMAIN}" "${NEW_DOMAIN}" >/dev/null 2>&1
+        bash dingding.sh "闪烁-客户代理配置" "\n 😭 **客户代理指向配置失败**   \n >  * 🚨 配置日期: ${CURRENT_TIME}   \n >  * 🔞 客户域名: ${NEW_DOMAIN}    \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}" "${NEW_DOMAIN}" >/dev/null 2>&1
     fi
 }
 
