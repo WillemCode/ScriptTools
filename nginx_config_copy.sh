@@ -190,8 +190,6 @@ NG_CONFIG() {
                 mv -bf ${VHOST_PATH}/${NEW_NG_CONF}{,-bak_$(date '+%Y%m%d%H%M%S')}
                 cp ${VHOST_PATH}/${OLD_NG_CONF} ${VHOST_PATH}/${NEW_NG_CONF}
                 sed -i "/root\|proxy/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF}
-                log_info "检查已修改的配置项..."
-                sed -n "/${NEW_DOMAIN}/p" ${VHOST_PATH}/${NEW_NG_CONF}
             else  
                 log_info "配置的新域名虚拟主机配置文件已存在."  
                 return
@@ -200,13 +198,9 @@ NG_CONFIG() {
         mv -bf ${VHOST_PATH}/${NEW_NG_CONF}{,-bak_$(date '+%Y%m%d%H%M%S')}
         cp ${VHOST_PATH}/${OLD_NG_CONF} ${VHOST_PATH}/${NEW_NG_CONF}
         sed -i "/root\|proxy/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF} 
-        log_info "检查已修改的配置项..."
-        sed -n "/${NEW_DOMAIN}/p" ${VHOST_PATH}/${NEW_NG_CONF}
     else
         cp ${VHOST_PATH}/${OLD_NG_CONF} ${VHOST_PATH}/${NEW_NG_CONF}
         sed -i "/root\|proxy/!s#${OLD_DOMAIN}#${NEW_DOMAIN}#g" ${VHOST_PATH}/${NEW_NG_CONF} 
-        log_info "检查已修改的配置项..."
-        sed -n "/${NEW_DOMAIN}/p" ${VHOST_PATH}/${NEW_NG_CONF}
     fi
 }
 
@@ -224,13 +218,17 @@ SSL_CONFIG() {
                 SSL_TIME=$(openssl x509 -in ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX} -noout -dates|grep notAfter|awk -F '=' '{print $2}')
                 sed -i "s#ssl_certificate .*#ssl_certificate ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX}\;#g" ${VHOST_PATH}/${NEW_NG_CONF} 
                 sed -i "s#ssl_certificate_key.*#ssl_certificate_key ${SSL_PATH}/${SSL_DOMAIN}.key\;#g" ${VHOST_PATH}/${NEW_NG_CONF} 
+                log_info "检查已修改的配置项..."
+                sed -n "/${NEW_DOMAIN}\|${SSL_FAN_NAME}/p" ${VHOST_PATH}/${NEW_NG_CONF}
                 break
             else
                 if [ "$COUNTER" -eq "1" ]; then
-                    log_error "当前域名的SSL证书文件不存在."
-                    log_error "请将域名SSL证书文件上传到该目录: ${SSL_PATH}."
                     sed -i "s#ssl_certificate .*#ssl_certificate ${SSL_PATH}/${NEW_DOMAIN}.${SSL_SUFFIX}\;#g" ${VHOST_PATH}/${NEW_NG_CONF}
                     sed -i "s#ssl_certificate_key.*#ssl_certificate_key ${SSL_PATH}/${NEW_DOMAIN}.key\;#g" ${VHOST_PATH}/${NEW_NG_CONF} 
+                    log_info "检查已修改的配置项..."
+                    sed -n "/${NEW_DOMAIN}\|${SSL_FAN_NAME}/p" ${VHOST_PATH}/${NEW_NG_CONF}
+                    log_error "当前域名的SSL证书文件不存在."
+                    log_error "请将域名SSL证书文件上传到该目录: ${SSL_PATH}."
                     exit 100
                 fi
             fi
@@ -242,7 +240,7 @@ SSL_CONFIG() {
                 new_data=$(openssl x509 -in "${SSL_DOMAIN}.${SSL_SUFFIX}" -noout -enddate | cut -d= -f2)
                 new_data_formatted=$(date -d "$new_data" +"%Y-%m-%d")
                 new_date_epoch=$(date -d "$new_data" +%s)
-		        if [ "$end_date_epoch" -lt "$new_date_epoch" ]; then
+		if [ "$end_date_epoch" -lt "$new_date_epoch" ]; then
                     log_info "正在更新证书..."
                     log_info "当前证书到期时间: $end_date_formatted"
                     log_info "更新证书到期时间: $new_data_formatted"
@@ -254,7 +252,7 @@ SSL_CONFIG() {
                     bash dingding.sh "闪烁-客户证书配置" "\n 🏅 **客户SSL证书更新成功**    \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}    \n  ---   \n\r\n >  * 🚧 旧证书到期时间: ${end_date_formatted} \n\r\n >  * 🚀 新证书到期时间: ${new_data_formatted} \n\n --- \n ☑️ 到期记得更换哦 😯" "${NEW_DOMAIN}" >/dev/null 2>&1
                 else
                     log_warning "当前需要配置证书的到期时间小于--服务器目前使用的证书, 不进行更换证书."
-		        fi
+		fi
             fi
             SSL_TYPE=$(openssl x509 -in ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX} -text -noout | awk -F'=' '/Subject: CN.*=/{print $2}')
             SSL_TIME=$(openssl x509 -in ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX} -noout -dates|grep notAfter|awk -F '=' '{print $2}')
@@ -310,6 +308,7 @@ BAK_CONFIG() {
 }
 
 main() {
+    echo ""
     if [ -z "${NEW_DOMAIN:-}" ] && [ -z "${OLD_DOMAIN:-}" ]; then
         read -e -p "Please Input New Domain :" NEW_DOMAIN
         read -e -p "Please Input Old Domain :" OLD_DOMAIN
