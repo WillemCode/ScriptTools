@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script Name: config_script.sh 
-# Description: 闪烁运维群需求 代理域名指向自动配置. 证书更换配置.
+# Description: NGINX 自动配置. 证书更换配置.
 # Author: wangjinlong
 # Date: 2024-05-09
 # Version: 5.7
@@ -12,7 +12,7 @@ PROJECT_HOME="$HOME/.${PROJECT_NAME}"
 PROJECT_BACKUPS="$PROJECT_HOME/backups"
 
 VERSION() {
-    echo "Version 3.6"
+    echo "Version 5.7"
     exit 1
 }
 
@@ -249,7 +249,7 @@ SSL_CONFIG() {
                     mv ${SSL_DOMAIN}.${SSL_SUFFIX} ${SSL_PATH}/${SSL_DOMAIN}.${SSL_SUFFIX}
                     mv ${SSL_DOMAIN}.key ${SSL_PATH}/${SSL_DOMAIN}.key
                     log_info "证书已更换成功."
-                    bash dingding.sh "闪烁-客户证书配置" "\n 🏅 **客户SSL证书更新成功**    \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}    \n  ---   \n\r\n >  * 🚧 旧证书到期时间: ${end_date_formatted} \n\r\n >  * 🚀 新证书到期时间: ${new_data_formatted} \n\n --- \n ☑️ 到期记得更换哦 😯" "${NEW_DOMAIN}" >/dev/null 2>&1
+                    bash dingding.sh "客户证书配置" "\n 🏅 **客户SSL证书更新成功**    \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 公司域名: ${OLD_DOMAIN}    \n  ---   \n\r\n >  * 🚧 旧证书到期时间: ${end_date_formatted} \n\r\n >  * 🚀 新证书到期时间: ${new_data_formatted} \n\n --- \n ☑️ 到期记得更换哦 😯" "${NEW_DOMAIN}" >/dev/null 2>&1
                 else
                     log_warning "当前需要配置证书的到期时间小于--服务器目前使用的证书, 不进行更换证书."
 		fi
@@ -339,10 +339,10 @@ main() {
     done < <(grep -oP 'include\s+\K.*\*.conf' "$NGINX_CONFIG")
     NOTICE=$?
     if [ $NOTICE -eq 0 ]; then
-        bash dingding.sh "闪烁-客户代理配置" "\n 🌺 **客户代理指向配置成功**   \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}    \n  ---  \n >  * 📋 配置文件: ${NEW_NG_CONF}    \n >  * 📂 主机路径: ${VHOST_PATH}    \n >  * 🔄 到期时间: ${SSL_TIME}    \n >  * 🌐 证书路径: ${SSL_PATH}" "${NEW_DOMAIN}" >/dev/null 2>&1
+        bash dingding.sh "客户NGINX代理配置" "\n 🌺 **配置成功**   \n >  * 🚨 配置日期: ${CURRENT_TIME}  \n >  * 🔞 客户域名: ${NEW_DOMAIN}   \n >  * 🏆 公司域名: ${OLD_DOMAIN}    \n  ---  \n >  * 📋 配置文件: ${NEW_NG_CONF}    \n >  * 📂 主机路径: ${VHOST_PATH}    \n >  * 🔄 到期时间: ${SSL_TIME}    \n >  * 🌐 证书路径: ${SSL_PATH}" "${NEW_DOMAIN}" >/dev/null 2>&1
         RELOAD_NG
     else
-        bash dingding.sh "闪烁-客户代理配置" "\n 😭 **客户代理指向配置失败**   \n >  * 🚨 配置日期: ${CURRENT_TIME}   \n >  * 🔞 客户域名: ${NEW_DOMAIN}    \n >  * 🏆 夺冠域名: ${OLD_DOMAIN}" "${NEW_DOMAIN}" >/dev/null 2>&1
+        bash dingding.sh "客户NGINX代理配置" "\n 😭 **配置失败**   \n >  * 🚨 配置日期: ${CURRENT_TIME}   \n >  * 🔞 客户域名: ${NEW_DOMAIN}    \n >  * 🏆 公司域名: ${OLD_DOMAIN}" "${NEW_DOMAIN}" >/dev/null 2>&1
     fi
 }
 
